@@ -191,6 +191,79 @@ int grpc_server_add_secure_http2_port(grpc_server *server, const char *addr,
 grpc_call_error grpc_call_set_credentials(grpc_call *call,
                                           grpc_credentials *creds);
 
+/* --- Authentication Context. --- */
+
+/* TODO(jboeuf): Define property names. */
+
+/* Types of properties that are found in the context. */
+typedef enum {
+  GRPC_AUTH_LIST_PROPERTY,
+  GRPC_AUTH_SLICE_PROPERTY;
+}
+grpc_auth_property_type;
+
+/* Property type. The name can be NULL. */
+typedef struct grpc_auth_property {
+  grpc_auth_property_type type;
+  const char *name;
+  union {
+    struct {
+      struct grpc_auth_property *children;
+      size_t count;
+    } list;
+    gpr_slice slice;
+  } value;
+} grpc_auth_property;
+
+/* Context object. Can optionally be chained. */
+typedef struct grpc_auth_context {
+  struct grpc_auth_context *chained;
+  grpc_auth_property *properties;
+  size_t property_count;
+  gpr_refcount refcount;
+} grpc_auth_context;
+
+/* Gets the peer identity. Returns NULL if the peer is not authenticated. */
+gpr_slice *grpc_auth_context_peer_identity(
+    const grpc_auth_context *ctx);
+
+/* Gets the peer identity origin which is the property name from which
+   the identity was retrieved. Returns NULL if the peer is not authenticated. */
+const char *grpc_auth_context_peer_identity_origin(
+    const grpc_auth_context *ctx);
+
+/* Finds a property in the context. Looks in the chained context recursively
+   if not found in the current context. */
+const grpc_auth_property *grpc_auth_context_find_property(
+    const grpc_auth_context *ctx, const char *name);
+
+/* Refcounting. */
+grpc_auth_context *grpc_auth_context_ref(
+    grpc_auth_context *ctx);
+void grpc_auth_context_unref(grpc_auth_context *ctx);
+
+/* Gets the auth context from the call. On the server side, the registered
+   grpc_process_auth_metadata function will be called, if any. */
+grpc_auth_context *grpc_call_auth_context(grpc_call *call);
+
+/* --- Server auth metadata processing. --- */
+
+/* Called when the metadata processing is done. If the processing failed,
+   success is set to 0. */
+typedef void (*grpc_process_auth_metadata_done_cb)(
+    void *user_data, int success, grpc_auth_context *result);
+
+/* Pluggable metadata processing function. */
+typedef void (*grpc_process_auth_metadata_func)(
+    grpc_auth_context *transport_ctx,
+    const grpc_metadata_array *metadata,
+    grpc_process_auth_metadata_done_cb cb, void *user_data);
+
+/* Registration function for metadata processing.
+   Should be called before the server is started. */
+void grpc_server_auth_context_register_process_metadata_func(
+    grpc_process_auth_metadata_func func);
+
 #ifdef __cplusplus
 }
 #endif
