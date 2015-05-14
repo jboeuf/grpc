@@ -194,25 +194,10 @@ grpc_call_error grpc_call_set_credentials(grpc_call *call,
 /* --- Authentication Context. --- */
 
 /* TODO(jboeuf): Define property names. */
-
-/* Types of properties that are found in the context. */
-typedef enum {
-  GRPC_AUTH_LIST_PROPERTY,
-  GRPC_AUTH_SLICE_PROPERTY;
-}
-grpc_auth_property_type;
-
-/* Property type. The name can be NULL. */
 typedef struct grpc_auth_property {
-  grpc_auth_property_type type;
-  const char *name;
-  union {
-    struct {
-      struct grpc_auth_property *children;
-      size_t count;
-    } list;
-    gpr_slice slice;
-  } value;
+  char *name;
+  char *value;
+  size_t value_length;
 } grpc_auth_property;
 
 /* Context object. Can optionally be chained. */
@@ -221,21 +206,27 @@ typedef struct grpc_auth_context {
   grpc_auth_property *properties;
   size_t property_count;
   gpr_refcount refcount;
+  const char *identity_property_name;
 } grpc_auth_context;
 
-/* Gets the peer identity. Returns NULL if the peer is not authenticated. */
-gpr_slice *grpc_auth_context_peer_identity(
-    const grpc_auth_context *ctx);
+typedef struct grpc_auth_property_value_iterator {
+  const char *value;
+  size_t value_length;
+  struct grpc_auth_property_value_iterator *next;
+} grpc_auth_property_value_iterator;
 
-/* Gets the peer identity origin which is the property name from which
-   the identity was retrieved. Returns NULL if the peer is not authenticated. */
-const char *grpc_auth_context_peer_identity_origin(
+void grpc_auth_property_value_iterator_destory(
+    grpc_auth_property_value_iterator *it);
+
+/* Gets the peer identity. Returns NULL if the peer is not authenticated. */
+grpc_auth_property_value_iterator *grpc_auth_context_peer_identity(
     const grpc_auth_context *ctx);
 
 /* Finds a property in the context. Looks in the chained context recursively
    if not found in the current context. */
-const grpc_auth_property *grpc_auth_context_find_property(
-    const grpc_auth_context *ctx, const char *name);
+size_t *grpc_auth_context_find_properties_by_name(
+    const grpc_auth_context *ctx, const char *name,
+    grpc_auth_property **property);
 
 /* Refcounting. */
 grpc_auth_context *grpc_auth_context_ref(

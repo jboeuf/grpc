@@ -36,6 +36,15 @@
 
 #include "src/core/security/credentials.h"
 
+/* Auth Context object. Can optionally be chained. */
+typedef struct grpc_auth_context {
+  struct grpc_auth_context *chained;
+  grpc_auth_property *properties;
+  size_t property_count;
+  gpr_refcount refcount;
+} grpc_auth_context;
+
+
 /* Security context attached to a client-side call. */
 typedef struct {
   grpc_credentials *creds;
