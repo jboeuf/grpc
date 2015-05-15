@@ -35,10 +35,13 @@
 
 #include "src/core/security/security_context.h"
 #include "src/core/surface/call.h"
+#include "src/core/support/string.h"
 
 #include <grpc/grpc_security.h>
 #include <grpc/support/alloc.h>
 #include <grpc/support/log.h>
+
+/* --- grpc_call --- */
 
 grpc_call_error grpc_call_set_credentials(grpc_call *call,
                                           grpc_credentials *creds) {
@@ -65,6 +68,8 @@ grpc_call_error grpc_call_set_credentials(grpc_call *call,
   return GRPC_CALL_OK;
 }
 
+/* --- grpc_client_security_context --- */
+
 grpc_client_security_context *grpc_client_security_context_create(void) {
   grpc_client_security_context *ctx =
       gpr_malloc(sizeof(grpc_client_security_context));
@@ -76,4 +81,85 @@ void grpc_client_security_context_destroy(void *ctx) {
   grpc_client_security_context *c = (grpc_client_security_context *)ctx;
   grpc_credentials_unref(c->creds);
   gpr_free(ctx);
+}
+
+/* --- grpc_auth_context --- */
+
+grpc_auth_context *grpc_auth_context_ref(grpc_auth_context *ctx) {
+  if (ctx == NULL) return NULL;
+  gpr_ref(&ctx->refcount);
+  return ctx;
+}
+
+void grpc_auth_context_unref(grpc_auth_context *ctx) {
+  if (ctx == NULL) return;
+  if (gpr_unref(&ctx->refcount)) {
+    size_t i;
+    grpc_auth_context_unref(ctx->chained);
+    for (i = 0; i < ctx->property_count; i++) {
+      grpc_auth_property *prop = &ctx->properties[i];
+      gpr_free(prop->name);
+      gpr_free(prop->value);
+    }
+  }
+}
+
+const char *gprc_auth_context_peer_identity_property_name(
+    const grpc_auth_context *ctx) {
+  return ctx->peer_identity_property_name;
+}
+
+grpc_auth_property_iterator *grpc_auth_context_property_iterator(
+    const grpc_auth_context *ctx) {
+  grpc_auth_property_iterator *it;
+  if (ctx == NULL) return NULL;
+  it = gpr_malloc(sizeof(grpc_auth_property_iterator));
+  memset(it, 0, sizeof(grpc_auth_property_iterator));
+  it->ctx = ctx;
+  return it;
+}
+
+const grpc_auth_property *grpc_auth_property_iterator_next(
+    grpc_auth_property_iterator *it) {
+  if (it == NULL) return NULL;
+  while (it->index == it->ctx->property_count) {
+    if (it->ctx->chained == NULL) return NULL;
+    it->ctx = it->ctx->chained;
+    it->index = 0;
+  }
+  if (it->name == NULL) {
+    return &it->ctx->properties[it->index++];
+  } else {
+    while (it->index < it->ctx->property_count) {
+      const grpc_auth_property *prop = &it->ctx->properties[it->index++];
+      GPR_ASSERT(prop->name != NULL);
+      if (strcmp(it->name, prop->name) == 0) {
+        return prop;
+      }
+    }
+    /* We could not find the name, try another round. */
+    return grpc_auth_property_iterator_next(it);
+  }
+}
+
+grpc_auth_property_iterator *grpc_auth_context_find_properties_by_name(
+    const grpc_auth_context *ctx, const char *name) {
+  grpc_auth_property_iterator *it;
+  if (ctx == NULL || name == NULL) return NULL;
+  it = grpc_auth_context_property_iterator(ctx);
+  it->name = gpr_strdup(name);
+  return it;
+}
+
+grpc_auth_property_iterator *grpc_auth_context_peer_identity(
+    const grpc_auth_context *ctx) {
+  if (ctx == NULL || ctx->peer_identity_property_name == NULL) return NULL;
+  return grpc_auth_context_find_properties_by_name(
+      ctx, ctx->peer_identity_property_name);
+}
+
+void grpc_auth_property_iterator_destroy(grpc_auth_property_iterator *it) {
+  if (it == NULL) return;
+  if (it->name != NULL) gpr_free(it->name);
+  gpr_free(it);
 }

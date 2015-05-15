@@ -36,22 +36,61 @@
 
 #include "src/core/security/credentials.h"
 
-/* Auth Context object. Can optionally be chained. */
-typedef struct grpc_auth_context {
+/* --- grpc_auth_context ---
+
+   High level authentication context object. Can optionally be chained. */
+
+/* Property names are always NULL terminated. */
+
+struct grpc_auth_property_iterator {
+  const grpc_auth_context *ctx;
+  size_t index;
+  char *name;
+};
+
+struct grpc_auth_context {
   struct grpc_auth_context *chained;
   grpc_auth_property *properties;
   size_t property_count;
   gpr_refcount refcount;
-} grpc_auth_context;
+  const char *peer_identity_property_name;
+};
 
+/* Refcounting. */
+grpc_auth_context *grpc_auth_context_ref(
+    grpc_auth_context *ctx);
+void grpc_auth_context_unref(grpc_auth_context *ctx);
 
-/* Security context attached to a client-side call. */
+/* Called when the metadata processing is done. If the processing failed,
+   success is set to 0. */
+typedef void (*grpc_process_auth_metadata_done_cb)(
+    void *user_data, int success, grpc_auth_context *result);
+
+/* Pluggable metadata processing function. */
+typedef void (*grpc_process_auth_metadata_func)(
+    grpc_auth_context *transport_ctx,
+    const grpc_metadata_array *metadata,
+    grpc_process_auth_metadata_done_cb cb, void *user_data);
+
+/* Registration function for metadata processing.
+   Should be called before the server is started. */
+void grpc_server_auth_context_register_process_metadata_func(
+    grpc_process_auth_metadata_func func);
+
+/* --- grpc_client_security_context ---
+
+   Internal client-side security context. */
+
 typedef struct {
   grpc_credentials *creds;
 } grpc_client_security_context;
 
 grpc_client_security_context *grpc_client_security_context_create(void);
 void grpc_client_security_context_destroy(void *ctx);
+
+/* --- grpc_server_security_context ---
+
+   Internal server-side security context. (TODO: jboeuf) */
 
 #endif  /* GRPC_INTERNAL_CORE_SECURITY_SECURITY_CONTEXT_H */
 

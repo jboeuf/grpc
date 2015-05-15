@@ -193,67 +193,43 @@ grpc_call_error grpc_call_set_credentials(grpc_call *call,
 
 /* --- Authentication Context. --- */
 
-/* TODO(jboeuf): Define property names. */
+/* TODO(jboeuf): Define some well-known property names. */
+
+typedef struct grpc_auth_context grpc_auth_context;
+typedef struct grpc_auth_property_iterator grpc_auth_property_iterator;
+
 typedef struct grpc_auth_property {
-  char *name;
+  char *name;  /* Cannot be NULL. */
   char *value;
-  size_t value_length;
+  char *value_length;
 } grpc_auth_property;
 
-/* Context object. Can optionally be chained. */
-typedef struct grpc_auth_context {
-  struct grpc_auth_context *chained;
-  grpc_auth_property *properties;
-  size_t property_count;
-  gpr_refcount refcount;
-  const char *identity_property_name;
-} grpc_auth_context;
+/* Returns NULL when the iterator is at the end. */
+const grpc_auth_property *grpc_auth_property_iterator_next(
+    grpc_auth_property_iterator *it);
+void grpc_auth_property_iterator_destroy(grpc_auth_property_iterator *it);
 
-typedef struct grpc_auth_property_value_iterator {
-  const char *value;
-  size_t value_length;
-  struct grpc_auth_property_value_iterator *next;
-} grpc_auth_property_value_iterator;
-
-void grpc_auth_property_value_iterator_destory(
-    grpc_auth_property_value_iterator *it);
-
-/* Gets the peer identity. Returns NULL if the peer is not authenticated. */
-grpc_auth_property_value_iterator *grpc_auth_context_peer_identity(
+grpc_auth_property_iterator *grpc_auth_context_property_iterator(
     const grpc_auth_context *ctx);
 
-/* Finds a property in the context. Looks in the chained context recursively
-   if not found in the current context. */
-size_t *grpc_auth_context_find_properties_by_name(
-    const grpc_auth_context *ctx, const char *name,
-    grpc_auth_property **property);
+/* Gets the peer identity. Returns NULL if the peer is not authenticated.
+   An identity may consist of multiple values (e.g. Subject Alternative Names
+   in X509 SSL certificates). */
+grpc_auth_property_iterator *grpc_auth_context_peer_identity(
+    const grpc_auth_context *ctx);
 
-/* Refcounting. */
-grpc_auth_context *grpc_auth_context_ref(
-    grpc_auth_context *ctx);
-void grpc_auth_context_unref(grpc_auth_context *ctx);
+/* Finds a property in the context. May return an empty iterator if no property
+   with this name was found in the context. Will return NULL on NULL input. */
+grpc_auth_property_iterator *grpc_auth_context_find_properties_by_name(
+    const grpc_auth_context *ctx, const char *name);
 
-/* Gets the auth context from the call. On the server side, the registered
-   grpc_process_auth_metadata function will be called, if any. */
-grpc_auth_context *grpc_call_auth_context(grpc_call *call);
+/* Gets the name of the property that indicates the peer identity. Will return
+   NULL if the peer is not authenticated. */
+const char *grpc_auth_context_peer_identity_property_name(
+    const grpc_auth_context *ctx);
 
-/* --- Server auth metadata processing. --- */
-
-/* Called when the metadata processing is done. If the processing failed,
-   success is set to 0. */
-typedef void (*grpc_process_auth_metadata_done_cb)(
-    void *user_data, int success, grpc_auth_context *result);
-
-/* Pluggable metadata processing function. */
-typedef void (*grpc_process_auth_metadata_func)(
-    grpc_auth_context *transport_ctx,
-    const grpc_metadata_array *metadata,
-    grpc_process_auth_metadata_done_cb cb, void *user_data);
-
-/* Registration function for metadata processing.
-   Should be called before the server is started. */
-void grpc_server_auth_context_register_process_metadata_func(
-    grpc_process_auth_metadata_func func);
+/* Gets the auth context from the call. */
+const grpc_auth_context *grpc_call_auth_context(grpc_call *call);
 
 #ifdef __cplusplus
 }
