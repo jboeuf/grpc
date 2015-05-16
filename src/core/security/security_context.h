@@ -68,8 +68,8 @@ typedef void (*grpc_process_auth_metadata_done_cb)(
 
 /* Pluggable metadata processing function. */
 typedef void (*grpc_process_auth_metadata_func)(
-    grpc_auth_context *transport_ctx,
-    const grpc_metadata_array *metadata,
+    grpc_auth_context *base_ctx,
+    grpc_metadata_array *metadata,
     grpc_process_auth_metadata_done_cb cb, void *user_data);
 
 /* Registration function for metadata processing.
