@@ -286,6 +286,10 @@ typedef struct {
 grpc_call_credentials *grpc_metadata_credentials_create_from_plugin(
     grpc_metadata_credentials_plugin plugin, void *reserved);
 
+grpc_call_credentials *grpc_metadata_credentials_create_from_plugin_with_blah(
+    grpc_metadata_credentials_plugin plugin, int (*blah)(void *plugin_state),
+    void *reserved);
+
 /* --- Secure channel creation. --- */
 
 /* Creates a secure channel using the passed-in credentials. */

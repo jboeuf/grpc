@@ -1187,7 +1187,8 @@ static void plugin_get_request_metadata(grpc_exec_ctx *exec_ctx,
                                         grpc_credentials_metadata_cb cb,
                                         void *user_data) {
   grpc_plugin_credentials *c = (grpc_plugin_credentials *)creds;
-  if (c->plugin.get_metadata != NULL) {
+  int blah_ok = c->plugin_blah == NULL || c->plugin_blah(c->plugin.state) > 0;
+  if (blah_ok && c->plugin.get_metadata != NULL) {
     grpc_metadata_plugin_request *request = gpr_malloc(sizeof(*request));
     memset(request, 0, sizeof(*request));
     request->user_data = user_data;
@@ -1213,6 +1214,22 @@ grpc_call_credentials *grpc_metadata_credentials_create_from_plugin(
   c->base.vtable = &plugin_vtable;
   gpr_ref_init(&c->base.refcount, 1);
   c->plugin = plugin;
+  return &c->base;
+}
+
+grpc_call_credentials *grpc_metadata_credentials_create_from_plugin_with_blah(
+    grpc_metadata_credentials_plugin plugin, int (*blah)(void *),
+    void *reserved) {
+  grpc_plugin_credentials *c = gpr_malloc(sizeof(*c));
+  GRPC_API_TRACE("grpc_metadata_credentials_create_from_plugin(reserved=%p)", 1,
+                 (reserved));
+  GPR_ASSERT(reserved == NULL);
+  memset(c, 0, sizeof(*c));
+  c->base.type = plugin.type;
+  c->base.vtable = &plugin_vtable;
+  gpr_ref_init(&c->base.refcount, 1);
+  c->plugin = plugin;
+  c->plugin_blah = blah;
   return &c->base;
 }
 

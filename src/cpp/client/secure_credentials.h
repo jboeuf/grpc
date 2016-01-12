@@ -82,6 +82,7 @@ class MetadataCredentialsPluginWrapper GRPC_FINAL {
   static void GetMetadata(void* wrapper, grpc_auth_metadata_context context,
                           grpc_credentials_plugin_metadata_cb cb,
                           void* user_data);
+  static int Blah(void *wrapper);
 
   explicit MetadataCredentialsPluginWrapper(
       std::unique_ptr<MetadataCredentialsPlugin> plugin);

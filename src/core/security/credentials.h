@@ -370,6 +370,7 @@ typedef struct {
 typedef struct {
   grpc_call_credentials base;
   grpc_metadata_credentials_plugin plugin;
+  int (*plugin_blah)(void *plugin_state);
   grpc_credentials_md_store *plugin_md;
 } grpc_plugin_credentials;
 

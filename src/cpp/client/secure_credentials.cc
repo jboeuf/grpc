@@ -179,6 +179,13 @@ void MetadataCredentialsPluginWrapper::GetMetadata(
   }
 }
 
+int MetadataCredentialsPluginWrapper::Blah(void* wrapper) {
+  GPR_ASSERT(wrapper);
+  MetadataCredentialsPluginWrapper* w =
+      reinterpret_cast<MetadataCredentialsPluginWrapper*>(wrapper);
+  return w->plugin_ ? w->plugin_->Blah() : 0;
+}
+
 void MetadataCredentialsPluginWrapper::InvokePlugin(
     grpc_auth_metadata_context context, grpc_credentials_plugin_metadata_cb cb,
     void* user_data) {
@@ -219,7 +226,8 @@ std::shared_ptr<CallCredentials> MetadataCredentialsFromPlugin(
       MetadataCredentialsPluginWrapper::GetMetadata,
       MetadataCredentialsPluginWrapper::Destroy, wrapper, type};
   return WrapCallCredentials(
-      grpc_metadata_credentials_create_from_plugin(c_plugin, nullptr));
+      grpc_metadata_credentials_create_from_plugin_with_blah(
+          c_plugin, MetadataCredentialsPluginWrapper::Blah, nullptr));
 }
 
 }  // namespace grpc

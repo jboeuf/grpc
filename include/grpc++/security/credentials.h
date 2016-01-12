@@ -210,6 +210,8 @@ class MetadataCredentialsPlugin {
   // Type of credentials this plugin is implementing.
   virtual const char* GetType() const { return ""; }
 
+  virtual int Blah() { return 1; }
+
   // Gets the auth metatada produced by this plugin.
   // The fully qualified method name is:
   // service_url + "/" + method_name.
