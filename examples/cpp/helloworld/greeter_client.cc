@@ -31,11 +31,13 @@
  *
  */
 
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
 
 #include <grpc++/grpc++.h>
+#include <grpc++/security/credentials.h>
 
 #include "helloworld.grpc.pb.h"
 
@@ -45,6 +47,8 @@ using grpc::Status;
 using helloworld::HelloRequest;
 using helloworld::HelloReply;
 using helloworld::Greeter;
+
+namespace {
 
 class GreeterClient {
  public:
@@ -82,13 +86,31 @@ class GreeterClient {
   std::unique_ptr<Greeter::Stub> stub_;
 };
 
+std::string LoadFile(const char* filename) {
+  std::ifstream ifs(filename);
+  std::string content((std::istreambuf_iterator<char>(ifs)),
+                      (std::istreambuf_iterator<char>()));
+  return content;
+}
+
+}  // namespace
+
 int main(int argc, char** argv) {
   // Instantiate the client. It requires a channel, out of which the actual RPCs
   // are created. This channel models a connection to an endpoint (in this case,
   // localhost at port 50051). We indicate that the channel isn't authenticated
   // (use of InsecureChannelCredentials()).
+  auto ca = LoadFile(argv[1]);
+  auto cert_chain = LoadFile(argv[2]);
+  auto priv_key = LoadFile(argv[3]);
+
+  grpc::SslCredentialsOptions options;
+  options.pem_root_certs = ca;
+  options.pem_cert_chain = cert_chain;
+  options.pem_private_key = priv_key;
+
   GreeterClient greeter(grpc::CreateChannel(
-      "localhost:50051", grpc::InsecureChannelCredentials()));
+      "localhost:50051", grpc::SslCredentials(options)));
   std::string user("world");
   std::string reply = greeter.SayHello(user);
   std::cout << "Greeter received: " << reply << std::endl;

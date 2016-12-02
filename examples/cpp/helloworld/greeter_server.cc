@@ -31,11 +31,13 @@
  *
  */
 
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
 
 #include <grpc++/grpc++.h>
+#include <grpc++/security/server_credentials.h>
 
 #include "helloworld.grpc.pb.h"
 
@@ -47,6 +49,8 @@ using helloworld::HelloRequest;
 using helloworld::HelloReply;
 using helloworld::Greeter;
 
+namespace {
+
 // Logic and data behind the server's behavior.
 class GreeterServiceImpl final : public Greeter::Service {
   Status SayHello(ServerContext* context, const HelloRequest* request,
@@ -57,13 +61,29 @@ class GreeterServiceImpl final : public Greeter::Service {
   }
 };
 
-void RunServer() {
-  std::string server_address("0.0.0.0:50051");
+std::string LoadFile(const char* filename) {
+  std::ifstream ifs(filename);
+  std::string content((std::istreambuf_iterator<char>(ifs)),
+                      (std::istreambuf_iterator<char>()));
+  return content;
+}
+
+}  // namespace
+
+void RunServer(char** argv) {
+  std::string server_address("127.0.0.1:50051");
   GreeterServiceImpl service;
 
   ServerBuilder builder;
+
+  grpc::SslServerCredentialsOptions opts(
+      GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY);
+  opts.pem_root_certs = LoadFile(argv[1]);
+  grpc::SslServerCredentialsOptions::PemKeyCertPair pk{argv[3], argv[2]};
+  opts.pem_key_cert_pairs.push_back(pk);
+
   // Listen on the given address without any authentication mechanism.
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.AddListeningPort(server_address, grpc::SslServerCredentials(opts));
   // Register "service" as the instance through which we'll communicate with
   // clients. In this case it corresponds to an *synchronous* service.
   builder.RegisterService(&service);
@@ -77,7 +97,7 @@ void RunServer() {
 }
 
 int main(int argc, char** argv) {
-  RunServer();
+  RunServer(argv);
 
   return 0;
 }
