@@ -79,8 +79,13 @@ void RunServer(char** argv) {
   grpc::SslServerCredentialsOptions opts(
       GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY);
   opts.pem_root_certs = LoadFile(argv[1]);
-  grpc::SslServerCredentialsOptions::PemKeyCertPair pk{argv[3], argv[2]};
+  grpc::SslServerCredentialsOptions::PemKeyCertPair pk{LoadFile(argv[3]),
+                                                       LoadFile(argv[2])};
   opts.pem_key_cert_pairs.push_back(pk);
+
+  std::cout << "CA:\n" << opts.pem_root_certs << "\n";
+  std::cout << "Cert Chain:\n" << opts.pem_key_cert_pairs[0].cert_chain << "\n";
+  std::cout << "Priv Key:\n" << opts.pem_key_cert_pairs[0].private_key << "\n";
 
   // Listen on the given address without any authentication mechanism.
   builder.AddListeningPort(server_address, grpc::SslServerCredentials(opts));
