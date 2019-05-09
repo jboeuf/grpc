@@ -74,6 +74,11 @@ typedef enum {
 #define GRPC_REFRESH_TOKEN_POST_BODY_FORMAT_STRING \
   "client_id=%s&client_secret=%s&refresh_token=%s&grant_type=refresh_token"
 
+#define GRPC_STS_POST_BODY_FORMAT_STRING                                    \
+  "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&resource=%s&" \
+  "audience=%s&scope=%s&requested_token_type=%s&subject_token=%s&subject_"  \
+  "token_type=%s&actor_token=%s&actor_token_type=%s"
+
 /* --- Google utils --- */
 
 /* It is the caller's responsibility to gpr_free the result if not NULL. */

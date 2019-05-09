@@ -25,6 +25,7 @@
 #include "src/core/lib/gprpp/ref_counted_ptr.h"
 #include "src/core/lib/security/util/json_util.h"
 #include "src/core/lib/surface/api_trace.h"
+#include "src/core/lib/uri/uri_parser.h"
 
 #include <grpc/support/alloc.h>
 #include <grpc/support/log.h>
@@ -470,6 +471,122 @@ grpc_call_credentials* grpc_google_refresh_token_credentials_create(
   GPR_ASSERT(reserved == nullptr);
   return grpc_refresh_token_credentials_create_from_auth_refresh_token(token)
       .release();
+}
+
+//
+// STS credentials.
+//
+
+namespace {
+
+class grpc_sts_token_fetcher_credentials
+    : public grpc_oauth2_token_fetcher_credentials {
+ public:
+  grpc_sts_token_fetcher_credentials(
+      grpc_uri* sts_url,  // Ownership transfered.
+      const grpc_sts_credentials_options* options)
+      : sts_url_(sts_url),
+        resource_(gpr_strdup(options->resource)),
+        audience_(gpr_strdup(options->audience)),
+        scope_(gpr_strdup(options->scope)),
+        requested_token_type_(gpr_strdup(options->requested_token_type)),
+        subject_token_(gpr_strdup(options->subject_token)),
+        subject_token_type_(gpr_strdup(options->subject_token_type)),
+        actor_token_(gpr_strdup(options->actor_token)),
+        actor_token_type_(gpr_strdup(options->actor_token_type)) {}
+
+  ~grpc_sts_token_fetcher_credentials() override {
+    grpc_uri_destroy(sts_url_);
+  }
+
+ protected:
+  void fetch_oauth2(grpc_credentials_metadata_request* metadata_req,
+                    grpc_httpcli_context* http_context,
+                    grpc_polling_entity* pollent,
+                    grpc_iomgr_cb_func response_cb,
+                    grpc_millis deadline) override {
+    grpc_http_header header = {(char*)"Content-Type",
+                               (char*)"application/x-www-form-urlencoded"};
+    grpc_httpcli_request request;
+    char* body = nullptr;
+    gpr_asprintf(
+        &body, GRPC_STS_POST_BODY_FORMAT_STRING,
+        (resource_ != nullptr) ? resource_.get() : "",
+        (audience_ != nullptr) ? audience_.get() : "",
+        (scope_ != nullptr) ? scope_.get() : "",
+        (requested_token_type_ != nullptr) ? requested_token_type_.get() : "",
+        (subject_token_ != nullptr) ? subject_token_.get() : "",
+        (subject_token_type_ != nullptr) ? subject_token_type_.get() : "",
+        (actor_token_ != nullptr) ? actor_token_.get() : "",
+        (actor_token_type_ != nullptr) ? actor_token_type_.get() : "");
+
+    memset(&request, 0, sizeof(grpc_httpcli_request));
+    request.host = (char*)sts_url_->authority;
+    request.http.path = (char*)sts_url_->path;
+    request.http.hdr_count = 1;
+    request.http.hdrs = &header;
+    request.handshaker = (strcmp(sts_url_->scheme, "https") == 0)
+                             ? &grpc_httpcli_ssl
+                             : &grpc_httpcli_plaintext;
+    /* TODO(ctiller): Carry the resource_quota in ctx and share it with the host
+       channel. This would allow us to cancel an authentication query when under
+       extreme memory pressure. */
+    grpc_resource_quota* resource_quota =
+        grpc_resource_quota_create("oauth2_credentials_refresh");
+    grpc_httpcli_post(http_context, pollent, resource_quota, &request, body,
+                      strlen(body), deadline,
+                      GRPC_CLOSURE_CREATE(response_cb, metadata_req,
+                                          grpc_schedule_on_exec_ctx),
+                      &metadata_req->response);
+    grpc_resource_quota_unref_internal(resource_quota);
+    gpr_free(body);
+  }
+
+ private:
+  grpc_uri* sts_url_;
+  grpc_core::UniquePtr<char> resource_;
+  grpc_core::UniquePtr<char> audience_;
+  grpc_core::UniquePtr<char> scope_;
+  grpc_core::UniquePtr<char> requested_token_type_;
+  grpc_core::UniquePtr<char> subject_token_;
+  grpc_core::UniquePtr<char> subject_token_type_;
+  grpc_core::UniquePtr<char> actor_token_;
+  grpc_core::UniquePtr<char> actor_token_type_;
+};
+
+} // namespace
+
+grpc_call_credentials* grpc_sts_credentials_create(
+    const grpc_sts_credentials_options* options, void* reserved) {
+  // Validate options.
+  grpc_uri* sts_url = grpc_uri_parse(options->sts_endpoint_url, false);
+  if (sts_url == nullptr) {
+     gpr_log(GPR_ERROR, "Invalid STS endpoint URL");
+     goto fail;
+  }
+  if (strcmp(sts_url->scheme, "https") != 0 &&
+      strcmp(sts_url->scheme, "http") != 0) {
+    gpr_log(GPR_ERROR, "Invalid URI scheme [%s], must be https to http.",
+            sts_url->scheme);
+    goto fail;
+  }
+  if (options->subject_token == nullptr ||
+      strlen(options->subject_token) == 0) {
+    gpr_log(GPR_ERROR, "subject_token needs to be specified");
+    goto fail;
+  }
+  if (options->subject_token_type == nullptr ||
+      strlen(options->subject_token_type) == 0) {
+    gpr_log(GPR_ERROR, "subject_token_type needs to be specified");
+    goto fail;
+  }
+  GPR_ASSERT(reserved == nullptr);
+  return grpc_core::MakeRefCounted<
+             grpc_sts_token_fetcher_credentials>(sts_url, options)
+      .release();
+fail:
+  grpc_uri_destroy(sts_url);
+  return nullptr;
 }
 
 //

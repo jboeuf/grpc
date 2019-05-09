@@ -19,6 +19,7 @@
 #ifndef GRPC_GRPC_SECURITY_H
 #define GRPC_GRPC_SECURITY_H
 
+#include <grpc/impl/codegen/port_platform.h>
 #include <grpc/support/port_platform.h>
 
 #include <grpc/grpc.h>
@@ -203,7 +204,7 @@ typedef struct {
    - pem_key_cert_pair is a pointer on the object containing client's private
      key and certificate chain. This parameter can be NULL if the client does
      not have such a key/cert pair.
-   - verify_options is an optional verify_peer_options object which holds
+   - verify
      additional options controlling how peer certificates are verified. For
      example, you can supply a callback which receives the peer's certificate
      with which you can do additional verification. Can be NULL, in which
@@ -272,6 +273,21 @@ GRPCAPI grpc_call_credentials* grpc_access_token_credentials_create(
 GRPCAPI grpc_call_credentials* grpc_google_iam_credentials_create(
     const char* authorization_token, const char* authority_selector,
     void* reserved);
+
+typedef struct {
+  const char* sts_endpoint_url;      // Required.
+  const char* resource;              // Optional.
+  const char* audience;              // Optional.
+  const char* scope;                 // Optional.
+  const char* requested_token_type;  // Optional.
+  const char* subject_token;         // Required.
+  const char* subject_token_type;    // Required.
+  const char* actor_token;           // Optional.
+  const char* actor_token_type;      // Optional.
+} grpc_sts_credentials_options;
+
+GRPCAPI grpc_call_credentials* grpc_sts_credentials_create(
+    const grpc_sts_credentials_options*, void* reserved);
 
 /** Callback function to be called by the metadata credentials plugin
    implementation when the metadata is ready.
