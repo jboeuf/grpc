@@ -20,12 +20,14 @@
 #define GRPCPP_SECURITY_CREDENTIALS_H
 
 #include <grpcpp/security/credentials_impl.h>
+#include <memory>
 
 namespace grpc {
 
 typedef ::grpc_impl::ChannelCredentials ChannelCredentials;
 typedef ::grpc_impl::CallCredentials CallCredentials;
 typedef ::grpc_impl::SslCredentialsOptions SslCredentialsOptions;
+typedef ::grpc_impl::StsCredentialsOptions StsCredentialsOptions;
 typedef ::grpc_impl::SecureCallCredentials SecureCallCredentials;
 typedef ::grpc_impl::SecureChannelCredentials SecureChannelCredentials;
 
@@ -71,6 +73,11 @@ static inline std::shared_ptr<grpc_impl::CallCredentials> GoogleIAMCredentials(
     const grpc::string& authority_selector) {
   return ::grpc_impl::GoogleIAMCredentials(authorization_token,
                                            authority_selector);
+}
+
+static inline std::shared_ptr<grpc_impl::CallCredentials> StsCredentials(
+    const StsCredentialsOptions& options) {
+  return ::grpc_impl::StsCredentials(options);
 }
 
 static inline std::shared_ptr<ChannelCredentials> CompositeChannelCredentials(

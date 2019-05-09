@@ -22,6 +22,7 @@
 #include <grpcpp/channel.h>
 #include <grpcpp/impl/grpc_library.h>
 #include <grpcpp/support/channel_arguments.h>
+#include <memory>
 #include "src/cpp/client/create_channel_internal.h"
 #include "src/cpp/common/secure_auth_context.h"
 
@@ -174,6 +175,22 @@ std::shared_ptr<CallCredentials> GoogleIAMCredentials(
   grpc::GrpcLibraryCodegen init;  // To call grpc_init().
   return WrapCallCredentials(grpc_google_iam_credentials_create(
       authorization_token.c_str(), authority_selector.c_str(), nullptr));
+}
+
+// Builds STS credentials
+std::shared_ptr<CallCredentials> StsCredentials(const StsCredentialsOptions& options) {
+  grpc_sts_credentials_options opts;
+  memset(&opts, 0, sizeof(opts));
+  opts.sts_endpoint_url = options.sts_endpoint_url.c_str();
+  opts.resource = options.resource.c_str();
+  opts.audience = options.audience.c_str();
+  opts.scope = options.scope.c_str();
+  opts.requested_token_type = options.requested_token_type.c_str();
+  opts.subject_token = options.subject_token.c_str();
+  opts.subject_token_type = options.subject_token_type.c_str();
+  opts.actor_token = options.actor_token.c_str();
+  opts.actor_token_type = options.actor_token_type.c_str();
+  return WrapCallCredentials(grpc_sts_credentials_create(&opts, nullptr));
 }
 
 // Combines one channel credentials and one call credentials into a channel

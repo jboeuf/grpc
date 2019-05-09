@@ -231,6 +231,28 @@ std::shared_ptr<ChannelCredentials> InsecureChannelCredentials();
 /// Credentials for a channel using Cronet.
 std::shared_ptr<ChannelCredentials> CronetChannelCredentials(void* engine);
 
+/// Credentials for STS.
+struct StsCredentialsOptions {
+  grpc::string sts_endpoint_url;
+  grpc::string resource;
+  grpc::string audience;
+  grpc::string scope;
+  grpc::string requested_token_type;
+  grpc::string subject_token;
+  grpc::string subject_token_type;
+  grpc::string actor_token;
+  grpc::string actor_token_type;
+};
+
+/// \warning Only use these credentials options when connecting to a Google
+/// endpoint. Using these credentials to connect to any other service may result
+/// in this service being able to impersonate your client for requests to Google
+/// services.
+StsCredentialsOptions GoogleGkeStsCredentialsOptions();
+
+std::shared_ptr<CallCredentials> StsCredentials(
+    const StsCredentialsOptions& options);
+
 /// User defined metadata credentials.
 class MetadataCredentialsPlugin {
  public:
