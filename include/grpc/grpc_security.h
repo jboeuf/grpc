@@ -19,7 +19,6 @@
 #ifndef GRPC_GRPC_SECURITY_H
 #define GRPC_GRPC_SECURITY_H
 
-#include <grpc/impl/codegen/port_platform.h>
 #include <grpc/support/port_platform.h>
 
 #include <grpc/grpc.h>
@@ -204,7 +203,7 @@ typedef struct {
    - pem_key_cert_pair is a pointer on the object containing client's private
      key and certificate chain. This parameter can be NULL if the client does
      not have such a key/cert pair.
-   - verify
+   - verify_options is an optional verify_peer_options object which holds
      additional options controlling how peer certificates are verified. For
      example, you can supply a callback which receives the peer's certificate
      with which you can do additional verification. Can be NULL, in which
@@ -274,18 +273,22 @@ GRPCAPI grpc_call_credentials* grpc_google_iam_credentials_create(
     const char* authorization_token, const char* authority_selector,
     void* reserved);
 
+/** Options for creating STS Oauth Token Exchange credentials following the IETF
+   draft https://tools.ietf.org/html/draft-ietf-oauth-token-exchange-16. */
 typedef struct {
-  const char* sts_endpoint_url;      // Required.
-  const char* resource;              // Optional.
-  const char* audience;              // Optional.
-  const char* scope;                 // Optional.
-  const char* requested_token_type;  // Optional.
-  const char* subject_token;         // Required.
-  const char* subject_token_type;    // Required.
-  const char* actor_token;           // Optional.
-  const char* actor_token_type;      // Optional.
+  const char* sts_endpoint_url;     /* Required. */
+  const char* resource;             /* Optional. */
+  const char* audience;             /* Optional. */
+  const char* scope;                /* Optional. */
+  const char* requested_token_type; /* Optional. */
+  const char* subject_token;        /* Required. */
+  const char* subject_token_type;   /* Required. */
+  const char* actor_token;          /* Optional. */
+  const char* actor_token_type;     /* Optional. */
 } grpc_sts_credentials_options;
 
+/** Creates an STS credentials following the STS Token Exchanged specifed in the
+   IETF draft https://tools.ietf.org/html/draft-ietf-oauth-token-exchange-16. */
 GRPCAPI grpc_call_credentials* grpc_sts_credentials_create(
     const grpc_sts_credentials_options*, void* reserved);
 

@@ -20,7 +20,6 @@
 #define GRPCPP_SECURITY_CREDENTIALS_H
 
 #include <grpcpp/security/credentials_impl.h>
-#include <memory>
 
 namespace grpc {
 
