@@ -18,6 +18,7 @@
 
 #include <grpc/support/port_platform.h>
 
+#include "grpc/grpc_security.h"
 #include "src/core/lib/security/credentials/oauth2/oauth2_credentials.h"
 
 #include <string.h>
@@ -556,10 +557,15 @@ class grpc_sts_token_fetcher_credentials
 
 } // namespace
 
-grpc_call_credentials* grpc_sts_credentials_create(
-    const grpc_sts_credentials_options* options, void* reserved) {
-  // Validate options.
-  grpc_uri* sts_url = grpc_uri_parse(options->sts_endpoint_url, false);
+grpc_uri* grpc_validate_sts_credentials_options(
+    const grpc_sts_credentials_options* options) {
+  grpc_uri* sts_url = nullptr;
+  if (options->sts_endpoint_url == nullptr ||
+      strlen(options->sts_endpoint_url) == 0) {
+    gpr_log(GPR_ERROR, "sts_endpoint_url needs to be specified");
+    goto fail;
+  }
+  sts_url = grpc_uri_parse(options->sts_endpoint_url, false);
   if (sts_url == nullptr) {
      gpr_log(GPR_ERROR, "Invalid STS endpoint URL");
      goto fail;
@@ -580,13 +586,20 @@ grpc_call_credentials* grpc_sts_credentials_create(
     gpr_log(GPR_ERROR, "subject_token_type needs to be specified");
     goto fail;
   }
-  GPR_ASSERT(reserved == nullptr);
-  return grpc_core::MakeRefCounted<
-             grpc_sts_token_fetcher_credentials>(sts_url, options)
-      .release();
+  return sts_url;
 fail:
   grpc_uri_destroy(sts_url);
   return nullptr;
+}
+
+grpc_call_credentials* grpc_sts_credentials_create(
+    const grpc_sts_credentials_options* options, void* reserved) {
+  GPR_ASSERT(reserved == nullptr);
+  grpc_uri* sts_url = grpc_validate_sts_credentials_options(options);
+  if (sts_url == nullptr) return nullptr;
+  return grpc_core::MakeRefCounted<
+             grpc_sts_token_fetcher_credentials>(sts_url, options)
+      .release();
 }
 
 //

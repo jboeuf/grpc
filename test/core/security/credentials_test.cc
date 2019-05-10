@@ -18,6 +18,7 @@
 
 #include <grpc/support/port_platform.h>
 
+#include "grpc/grpc_security.h"
 #include "src/core/lib/security/credentials/credentials.h"
 
 #include <openssl/rsa.h>
@@ -32,6 +33,7 @@
 #include <grpc/support/time.h>
 
 #include "src/core/lib/gpr/env.h"
+#include "src/core/lib/gpr/host_port.h"
 #include "src/core/lib/gpr/string.h"
 #include "src/core/lib/gpr/tmpfile.h"
 #include "src/core/lib/http/httpcli.h"
@@ -41,6 +43,7 @@
 #include "src/core/lib/security/credentials/jwt/jwt_credentials.h"
 #include "src/core/lib/security/credentials/oauth2/oauth2_credentials.h"
 #include "src/core/lib/security/transport/auth_filters.h"
+#include "src/core/lib/uri/uri_parser.h"
 #include "test/core/util/test_config.h"
 
 using grpc_core::internal::grpc_flush_cached_google_default_credentials;
@@ -104,9 +107,14 @@ static const char test_scope[] = "perm1 perm2";
 static const char test_signed_jwt[] =
     "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImY0OTRkN2M1YWU2MGRmOTcyNmM4YW"
     "U0MDcyZTViYTdmZDkwODg2YzcifQ";
+static const char test_signed_jwt_token_type[] =
+    "urn:ietf:params:oauth:token-type:id_token";
 
 static const char test_service_url[] = "https://foo.com/foo.v1";
 static const char other_test_service_url[] = "https://bar.com/bar.v1";
+
+static const char test_sts_endpoint_url[] =
+    "https://foo.com:5555/v1/token-exchange";
 
 static const char test_method[] = "ThisIsNotAMethod";
 
@@ -713,6 +721,103 @@ static void test_refresh_token_creds_failure(void) {
   grpc_httpcli_set_override(nullptr, nullptr);
 }
 
+static void test_valid_sts_credentials_options(void) {
+  grpc_sts_credentials_options valid_options = {
+      test_sts_endpoint_url,       // sts_endpoint_url.
+      nullptr,                     // resource.
+      nullptr,                     // audience.
+      nullptr,                     // scope.
+      nullptr,                     // requested_token_type
+      test_signed_jwt,             // subject_token.
+      test_signed_jwt_token_type,  // subject_token_type.
+      nullptr,                     // actor_token.
+      nullptr                      // actor_type_type.
+  };
+  grpc_uri* sts_url = grpc_validate_sts_credentials_options(&valid_options);
+  GPR_ASSERT(sts_url != nullptr);
+  char* host;
+  char* port;
+  GPR_ASSERT(gpr_split_host_port(sts_url->authority, &host, &port));
+  GPR_ASSERT(strcmp(host, "foo.com") == 0);
+  GPR_ASSERT(strcmp(port, "5555") == 0);
+  gpr_free(host);
+  gpr_free(port);
+  grpc_uri_destroy(sts_url);
+}
+
+static void test_invalid_sts_credentials_options(void) {
+  grpc_sts_credentials_options invalid_options = {
+      test_sts_endpoint_url,       // sts_endpoint_url.
+      nullptr,                     // resource.
+      nullptr,                     // audience.
+      nullptr,                     // scope.
+      nullptr,                     // requested_token_type
+      nullptr,                     // subject_token (Required).
+      test_signed_jwt_token_type,  // subject_token_type.
+      nullptr,                     // actor_token.
+      nullptr                      // actor_type_type.
+  };
+  grpc_uri* should_be_null =
+      grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(should_be_null == nullptr);
+
+  invalid_options = {
+      test_sts_endpoint_url,  // sts_endpoint_url.
+      nullptr,                // resource.
+      nullptr,                // audience.
+      nullptr,                // scope.
+      nullptr,                // requested_token_type
+      test_signed_jwt,        // subject_token.
+      nullptr,                // subject_token_type (Required).
+      nullptr,                // actor_token.
+      nullptr                 // actor_type_type.
+  };
+  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(should_be_null == nullptr);
+
+  invalid_options = {
+      nullptr,                     // sts_endpoint_url (Required).
+      nullptr,                     // resource.
+      nullptr,                     // audience.
+      nullptr,                     // scope.
+      nullptr,                     // requested_token_type
+      test_signed_jwt,             // subject_token.
+      test_signed_jwt_token_type,  // subject_token_type (Required).
+      nullptr,                     // actor_token.
+      nullptr                      // actor_type_type.
+  };
+  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(should_be_null == nullptr);
+
+  invalid_options = {
+      "not_a_valid_uri",           // sts_endpoint_url
+      nullptr,                     // resource.
+      nullptr,                     // audience.
+      nullptr,                     // scope.
+      nullptr,                     // requested_token_type
+      test_signed_jwt,             // subject_token.
+      test_signed_jwt_token_type,  // subject_token_type (Required).
+      nullptr,                     // actor_token.
+      nullptr                      // actor_type_type.
+  };
+  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(should_be_null == nullptr);
+
+  invalid_options = {
+      "ftp://ftp.is.not.a.valid.scheme/bar",  // sts_endpoint_url
+      nullptr,                                // resource.
+      nullptr,                                // audience.
+      nullptr,                                // scope.
+      nullptr,                                // requested_token_type
+      test_signed_jwt,                        // subject_token.
+      test_signed_jwt_token_type,             // subject_token_type (Required).
+      nullptr,                                // actor_token.
+      nullptr                                 // actor_type_type.
+  };
+  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(should_be_null == nullptr);
+}
+
 static void validate_jwt_encode_and_sign_params(
     const grpc_auth_json_key* json_key, const char* scope,
     gpr_timespec token_lifetime) {
@@ -1288,6 +1393,8 @@ int main(int argc, char** argv) {
   test_compute_engine_creds_failure();
   test_refresh_token_creds_success();
   test_refresh_token_creds_failure();
+  test_valid_sts_credentials_options();
+  test_invalid_sts_credentials_options();
   test_jwt_creds_lifetime();
   test_jwt_creds_success();
   test_jwt_creds_signing_failure();

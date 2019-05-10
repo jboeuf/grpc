@@ -274,7 +274,8 @@ GRPCAPI grpc_call_credentials* grpc_google_iam_credentials_create(
     void* reserved);
 
 /** Options for creating STS Oauth Token Exchange credentials following the IETF
-   draft https://tools.ietf.org/html/draft-ietf-oauth-token-exchange-16. */
+   draft https://tools.ietf.org/html/draft-ietf-oauth-token-exchange-16.
+   Optional fields may be set to NULL. */
 typedef struct {
   const char* sts_endpoint_url;     /* Required. */
   const char* resource;             /* Optional. */

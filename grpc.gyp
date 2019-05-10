@@ -1912,6 +1912,7 @@
         'third_party/boringssl/crypto/ecdsa_extra/ecdsa_asn1.c',
         'third_party/boringssl/crypto/engine/engine.c',
         'third_party/boringssl/crypto/err/err.c',
+        'third_party/boringssl/crypto/err/err_data.c',
         'third_party/boringssl/crypto/evp/digestsign.c',
         'third_party/boringssl/crypto/evp/evp.c',
         'third_party/boringssl/crypto/evp/evp_asn1.c',
