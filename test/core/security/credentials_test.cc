@@ -102,6 +102,12 @@ static const char valid_oauth2_json_response[] =
     " \"expires_in\":3599, "
     " \"token_type\":\"Bearer\"}";
 
+static const char valid_sts_json_response[] =
+    "{\"access_token\":\"ya29.AHES6ZRN3-HlhAPya30GnW_bHSb_\","
+    " \"expires_in\":3599, "
+    " \"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\", "
+    " \"token_type\":\"Bearer\"}";
+
 static const char test_scope[] = "perm1 perm2";
 
 static const char test_signed_jwt[] =
@@ -665,11 +671,10 @@ static int refresh_token_httpcli_post_success(
   return 1;
 }
 
-static int refresh_token_httpcli_post_failure(
+static int token_httpcli_post_failure(
     const grpc_httpcli_request* request, const char* body, size_t body_size,
     grpc_millis deadline, grpc_closure* on_done,
     grpc_httpcli_response* response) {
-  validate_refresh_token_http_request(request, body, body_size);
   *response = http_response(403, "Not Authorized.");
   GRPC_CLOSURE_SCHED(on_done, GRPC_ERROR_NONE);
   return 1;
@@ -684,7 +689,7 @@ static void test_refresh_token_creds_success(void) {
   grpc_call_credentials* creds = grpc_google_refresh_token_credentials_create(
       test_refresh_token_str, nullptr);
 
-  /* First request: http get should be called. */
+  /* First request: http put should be called. */
   request_metadata_state* state =
       make_request_metadata_state(GRPC_ERROR_NONE, emd, GPR_ARRAY_SIZE(emd));
   grpc_httpcli_set_override(httpcli_get_should_not_be_called,
@@ -715,13 +720,13 @@ static void test_refresh_token_creds_failure(void) {
   grpc_call_credentials* creds = grpc_google_refresh_token_credentials_create(
       test_refresh_token_str, nullptr);
   grpc_httpcli_set_override(httpcli_get_should_not_be_called,
-                            refresh_token_httpcli_post_failure);
+                            token_httpcli_post_failure);
   run_request_metadata_test(creds, auth_md_ctx, state);
   creds->Unref();
   grpc_httpcli_set_override(nullptr, nullptr);
 }
 
-static void test_valid_sts_credentials_options(void) {
+static void test_valid_sts_creds_options(void) {
   grpc_sts_credentials_options valid_options = {
       test_sts_endpoint_url,       // sts_endpoint_url.
       nullptr,                     // resource.
@@ -745,7 +750,7 @@ static void test_valid_sts_credentials_options(void) {
   grpc_uri_destroy(sts_url);
 }
 
-static void test_invalid_sts_credentials_options(void) {
+static void test_invalid_sts_creds_options(void) {
   grpc_sts_credentials_options invalid_options = {
       test_sts_endpoint_url,       // sts_endpoint_url.
       nullptr,                     // resource.
@@ -757,9 +762,9 @@ static void test_invalid_sts_credentials_options(void) {
       nullptr,                     // actor_token.
       nullptr                      // actor_type_type.
   };
-  grpc_uri* should_be_null =
+  grpc_uri* url_should_be_null =
       grpc_validate_sts_credentials_options(&invalid_options);
-  GPR_ASSERT(should_be_null == nullptr);
+  GPR_ASSERT(url_should_be_null == nullptr);
 
   invalid_options = {
       test_sts_endpoint_url,  // sts_endpoint_url.
@@ -772,8 +777,8 @@ static void test_invalid_sts_credentials_options(void) {
       nullptr,                // actor_token.
       nullptr                 // actor_type_type.
   };
-  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
-  GPR_ASSERT(should_be_null == nullptr);
+  url_should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(url_should_be_null == nullptr);
 
   invalid_options = {
       nullptr,                     // sts_endpoint_url (Required).
@@ -786,8 +791,8 @@ static void test_invalid_sts_credentials_options(void) {
       nullptr,                     // actor_token.
       nullptr                      // actor_type_type.
   };
-  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
-  GPR_ASSERT(should_be_null == nullptr);
+  url_should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(url_should_be_null == nullptr);
 
   invalid_options = {
       "not_a_valid_uri",           // sts_endpoint_url
@@ -800,8 +805,8 @@ static void test_invalid_sts_credentials_options(void) {
       nullptr,                     // actor_token.
       nullptr                      // actor_type_type.
   };
-  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
-  GPR_ASSERT(should_be_null == nullptr);
+  url_should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(url_should_be_null == nullptr);
 
   invalid_options = {
       "ftp://ftp.is.not.a.valid.scheme/bar",  // sts_endpoint_url
@@ -814,8 +819,124 @@ static void test_invalid_sts_credentials_options(void) {
       nullptr,                                // actor_token.
       nullptr                                 // actor_type_type.
   };
-  should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
-  GPR_ASSERT(should_be_null == nullptr);
+  url_should_be_null = grpc_validate_sts_credentials_options(&invalid_options);
+  GPR_ASSERT(url_should_be_null == nullptr);
+}
+
+static void validate_sts_token_http_request(
+    const grpc_httpcli_request* request, const char* body, size_t body_size) {
+  // Check that the body is constructed properly.
+  char* expected_body = nullptr;
+  GPR_ASSERT(body != nullptr);
+  GPR_ASSERT(body_size != 0);
+  gpr_asprintf(&expected_body, GRPC_STS_POST_BODY_FORMAT_STRING, "resource",
+               "audience", "scope", "requested_token_type", test_signed_jwt,
+               test_signed_jwt_token_type, "", "");
+  GPR_ASSERT(strlen(expected_body) == body_size);
+  GPR_ASSERT(memcmp(expected_body, body, body_size) == 0);
+  GPR_ASSERT(request->handshaker == &grpc_httpcli_ssl);
+  char* get_url_equivalent;
+  gpr_asprintf(&get_url_equivalent, "%s?%s", test_sts_endpoint_url,
+               expected_body);
+  grpc_uri* url = grpc_uri_parse(get_url_equivalent, false);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "resource"), "resource") == 0);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "audience"), "audience") == 0);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "scope"), "scope") == 0);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "requested_token_type"),
+                    "requested_token_type") == 0);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "subject_token"),
+                    test_signed_jwt) == 0);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "subject_token_type"),
+                    test_signed_jwt_token_type) == 0);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "actor_token"), "") == 0);
+  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "actor_token_type"), "") == 0);
+  grpc_uri_destroy(url);
+  gpr_free(expected_body);
+  gpr_free(get_url_equivalent);
+
+  // Check the rest of the request.
+  GPR_ASSERT(strcmp(request->host, "foo.com:5555") == 0);
+  GPR_ASSERT(strcmp(request->http.path, "/v1/token-exchange") == 0);
+  GPR_ASSERT(request->http.hdr_count == 1);
+  GPR_ASSERT(strcmp(request->http.hdrs[0].key, "Content-Type") == 0);
+  GPR_ASSERT(strcmp(request->http.hdrs[0].value,
+                    "application/x-www-form-urlencoded") == 0);
+}
+
+static int sts_token_httpcli_post_success(
+    const grpc_httpcli_request* request, const char* body, size_t body_size,
+    grpc_millis deadline, grpc_closure* on_done,
+    grpc_httpcli_response* response) {
+  validate_sts_token_http_request(request, body, body_size);
+  *response = http_response(200, valid_sts_json_response);
+  GRPC_CLOSURE_SCHED(on_done, GRPC_ERROR_NONE);
+  return 1;
+}
+
+static void test_sts_creds_success(void) {
+  grpc_core::ExecCtx exec_ctx;
+  expected_md emd[] = {
+      {"authorization", "Bearer ya29.AHES6ZRN3-HlhAPya30GnW_bHSb_"}};
+  grpc_auth_metadata_context auth_md_ctx = {test_service_url, test_method,
+                                            nullptr, nullptr};
+  grpc_sts_credentials_options valid_options = {
+      test_sts_endpoint_url,       // sts_endpoint_url.
+      "resource",                  // resource.
+      "audience",                  // audience.
+      "scope",                     // scope.
+      "requested_token_type",      // requested_token_type
+      test_signed_jwt,             // subject_token.
+      test_signed_jwt_token_type,  // subject_token_type.
+      nullptr,                     // actor_token.
+      nullptr                      // actor_type_type.
+  };
+  grpc_call_credentials* creds = grpc_sts_credentials_create(&valid_options, nullptr);
+
+  /* First request: http put should be called. */
+  request_metadata_state* state =
+      make_request_metadata_state(GRPC_ERROR_NONE, emd, GPR_ARRAY_SIZE(emd));
+  grpc_httpcli_set_override(httpcli_get_should_not_be_called,
+                            sts_token_httpcli_post_success);
+  run_request_metadata_test(creds, auth_md_ctx, state);
+  grpc_core::ExecCtx::Get()->Flush();
+
+  /* Second request: the cached token should be served directly. */
+  state =
+      make_request_metadata_state(GRPC_ERROR_NONE, emd, GPR_ARRAY_SIZE(emd));
+  grpc_httpcli_set_override(httpcli_get_should_not_be_called,
+                            httpcli_post_should_not_be_called);
+  run_request_metadata_test(creds, auth_md_ctx, state);
+  grpc_core::ExecCtx::Get()->Flush();
+
+  creds->Unref();
+  grpc_httpcli_set_override(nullptr, nullptr);
+}
+
+static void test_sts_creds_failure(void) {
+  grpc_core::ExecCtx exec_ctx;
+  request_metadata_state* state = make_request_metadata_state(
+      GRPC_ERROR_CREATE_FROM_STATIC_STRING(
+          "Error occurred when fetching oauth2 token."),
+      nullptr, 0);
+  grpc_auth_metadata_context auth_md_ctx = {test_service_url, test_method,
+                                            nullptr, nullptr};
+  grpc_sts_credentials_options valid_options = {
+      test_sts_endpoint_url,       // sts_endpoint_url.
+      "resource",                  // resource.
+      "audience",                  // audience.
+      "scope",                     // scope.
+      "requested_token_type",      // requested_token_type
+      test_signed_jwt,             // subject_token.
+      test_signed_jwt_token_type,  // subject_token_type.
+      nullptr,                     // actor_token.
+      nullptr                      // actor_type_type.
+  };
+  grpc_call_credentials* creds = grpc_sts_credentials_create(&valid_options, nullptr);
+  grpc_httpcli_set_override(httpcli_get_should_not_be_called,
+                            token_httpcli_post_failure);
+  run_request_metadata_test(creds, auth_md_ctx, state);
+  creds->Unref();
+  grpc_httpcli_set_override(nullptr, nullptr);
 }
 
 static void validate_jwt_encode_and_sign_params(
@@ -1393,8 +1514,10 @@ int main(int argc, char** argv) {
   test_compute_engine_creds_failure();
   test_refresh_token_creds_success();
   test_refresh_token_creds_failure();
-  test_valid_sts_credentials_options();
-  test_invalid_sts_credentials_options();
+  test_valid_sts_creds_options();
+  test_invalid_sts_creds_options();
+  test_sts_creds_success();
+  test_sts_creds_failure();
   test_jwt_creds_lifetime();
   test_jwt_creds_success();
   test_jwt_creds_signing_failure();
