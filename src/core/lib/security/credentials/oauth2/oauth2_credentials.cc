@@ -55,7 +55,7 @@ grpc_auth_refresh_token grpc_auth_refresh_token_create_from_json(
     goto end;
   }
 
-  prop_value = grpc_json_get_string_property(json, "type");
+  prop_value = grpc_json_get_string_property(json, "type", false);
   if (prop_value == nullptr ||
       strcmp(prop_value, GRPC_AUTH_JSON_TYPE_AUTHORIZED_USER)) {
     goto end;
@@ -480,6 +480,14 @@ grpc_call_credentials* grpc_google_refresh_token_credentials_create(
 
 namespace {
 
+char* maybe_add_to_query(char* body, const char* field_name, char* field) {
+  if (field == nullptr || strlen(field) == 0) return body;
+  char* new_body;
+  gpr_asprintf(&new_body, "%s&%s=%s", body, field_name, field);
+  gpr_free(body);
+  return new_body;
+}
+
 class grpc_sts_token_fetcher_credentials
     : public grpc_oauth2_token_fetcher_credentials {
  public:
@@ -510,16 +518,16 @@ class grpc_sts_token_fetcher_credentials
                                (char*)"application/x-www-form-urlencoded"};
     grpc_httpcli_request request;
     char* body = nullptr;
-    gpr_asprintf(
-        &body, GRPC_STS_POST_BODY_FORMAT_STRING,
-        (resource_ != nullptr) ? resource_.get() : "",
-        (audience_ != nullptr) ? audience_.get() : "",
-        (scope_ != nullptr) ? scope_.get() : "",
-        (requested_token_type_ != nullptr) ? requested_token_type_.get() : "",
-        (subject_token_ != nullptr) ? subject_token_.get() : "",
-        (subject_token_type_ != nullptr) ? subject_token_type_.get() : "",
-        (actor_token_ != nullptr) ? actor_token_.get() : "",
-        (actor_token_type_ != nullptr) ? actor_token_type_.get() : "");
+    gpr_asprintf(&body, GRPC_STS_POST_MINIMAL_BODY_FORMAT_STRING,
+                 subject_token_.get(), subject_token_type_.get());
+    body = maybe_add_to_query(body, "resource", resource_.get());
+    body = maybe_add_to_query(body, "audience", audience_.get());
+    body = maybe_add_to_query(body, "scope", scope_.get());
+    body = maybe_add_to_query(body, "requested_token_type",
+                              requested_token_type_.get());
+    body = maybe_add_to_query(body, "actor_token", actor_token_.get());
+    body =
+        maybe_add_to_query(body, "actor_token_type", actor_token_type_.get());
 
     memset(&request, 0, sizeof(grpc_httpcli_request));
     request.host = (char*)sts_url_->authority;

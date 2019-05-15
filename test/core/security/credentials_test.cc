@@ -826,18 +826,12 @@ static void test_invalid_sts_creds_options(void) {
 static void validate_sts_token_http_request(
     const grpc_httpcli_request* request, const char* body, size_t body_size) {
   // Check that the body is constructed properly.
-  char* expected_body = nullptr;
   GPR_ASSERT(body != nullptr);
   GPR_ASSERT(body_size != 0);
-  gpr_asprintf(&expected_body, GRPC_STS_POST_BODY_FORMAT_STRING, "resource",
-               "audience", "scope", "requested_token_type", test_signed_jwt,
-               test_signed_jwt_token_type, "", "");
-  GPR_ASSERT(strlen(expected_body) == body_size);
-  GPR_ASSERT(memcmp(expected_body, body, body_size) == 0);
   GPR_ASSERT(request->handshaker == &grpc_httpcli_ssl);
   char* get_url_equivalent;
   gpr_asprintf(&get_url_equivalent, "%s?%s", test_sts_endpoint_url,
-               expected_body);
+               body);
   grpc_uri* url = grpc_uri_parse(get_url_equivalent, false);
   GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "resource"), "resource") == 0);
   GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "audience"), "audience") == 0);
@@ -848,10 +842,9 @@ static void validate_sts_token_http_request(
                     test_signed_jwt) == 0);
   GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "subject_token_type"),
                     test_signed_jwt_token_type) == 0);
-  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "actor_token"), "") == 0);
-  GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "actor_token_type"), "") == 0);
+  GPR_ASSERT(grpc_uri_get_query_arg(url, "actor_token") == nullptr);
+  GPR_ASSERT(grpc_uri_get_query_arg(url, "actor_token_type") == nullptr);
   grpc_uri_destroy(url);
-  gpr_free(expected_body);
   gpr_free(get_url_equivalent);
 
   // Check the rest of the request.
