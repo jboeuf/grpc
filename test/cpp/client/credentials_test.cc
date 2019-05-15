@@ -35,6 +35,11 @@ TEST_F(CredentialsTest, InvalidGoogleRefreshToken) {
   EXPECT_EQ(static_cast<CallCredentials*>(nullptr), bad1.get());
 }
 
+TEST_F(CredentialsTest, InvalidStsCreds) {
+  std::shared_ptr<CallCredentials> bad1 = StsCredentials(StsCredentialsOptions());
+  EXPECT_EQ(static_cast<CallCredentials*>(nullptr), bad1.get());
+}
+
 TEST_F(CredentialsTest, DefaultCredentials) {
   auto creds = GoogleDefaultCredentials();
 }
