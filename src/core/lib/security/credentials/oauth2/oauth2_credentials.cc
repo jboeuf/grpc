@@ -504,9 +504,7 @@ class grpc_sts_token_fetcher_credentials
         actor_token_(gpr_strdup(options->actor_token)),
         actor_token_type_(gpr_strdup(options->actor_token_type)) {}
 
-  ~grpc_sts_token_fetcher_credentials() override {
-    grpc_uri_destroy(sts_url_);
-  }
+  ~grpc_sts_token_fetcher_credentials() override { grpc_uri_destroy(sts_url_); }
 
  protected:
   void fetch_oauth2(grpc_credentials_metadata_request* metadata_req,
@@ -563,7 +561,7 @@ class grpc_sts_token_fetcher_credentials
   grpc_core::UniquePtr<char> actor_token_type_;
 };
 
-} // namespace
+}  // namespace
 
 grpc_uri* grpc_validate_sts_credentials_options(
     const grpc_sts_credentials_options* options) {
@@ -575,8 +573,8 @@ grpc_uri* grpc_validate_sts_credentials_options(
   }
   sts_url = grpc_uri_parse(options->sts_endpoint_url, false);
   if (sts_url == nullptr) {
-     gpr_log(GPR_ERROR, "Invalid STS endpoint URL");
-     goto fail;
+    gpr_log(GPR_ERROR, "Invalid STS endpoint URL");
+    goto fail;
   }
   if (strcmp(sts_url->scheme, "https") != 0 &&
       strcmp(sts_url->scheme, "http") != 0) {
@@ -605,8 +603,8 @@ grpc_call_credentials* grpc_sts_credentials_create(
   GPR_ASSERT(reserved == nullptr);
   grpc_uri* sts_url = grpc_validate_sts_credentials_options(options);
   if (sts_url == nullptr) return nullptr;
-  return grpc_core::MakeRefCounted<
-             grpc_sts_token_fetcher_credentials>(sts_url, options)
+  return grpc_core::MakeRefCounted<grpc_sts_token_fetcher_credentials>(sts_url,
+                                                                       options)
       .release();
 }
 

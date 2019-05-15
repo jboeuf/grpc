@@ -56,8 +56,7 @@ static grpc_sts_credentials_options sts_options_from_json(grpc_json* json) {
 static grpc_call_credentials* create_sts_creds(const char* json_file_path) {
   grpc_slice sts_options_slice;
   GPR_ASSERT(GRPC_LOG_IF_ERROR(
-      "load_file",
-      grpc_load_file(json_file_path, 1, &sts_options_slice)));
+      "load_file", grpc_load_file(json_file_path, 1, &sts_options_slice)));
   grpc_json* json = grpc_json_parse_string(
       reinterpret_cast<char*>(GRPC_SLICE_START_PTR(sts_options_slice)));
   if (json == nullptr) {
@@ -144,7 +143,7 @@ int main(int argc, char** argv) {
               json_sts_options_file_path);
       exit(1);
     }
-  }else {
+  } else {
     gpr_log(GPR_ERROR, "Missing --gce or --json_refresh_token option.");
     exit(1);
   }

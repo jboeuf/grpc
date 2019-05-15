@@ -178,7 +178,8 @@ std::shared_ptr<CallCredentials> GoogleIAMCredentials(
 }
 
 // Builds STS credentials
-std::shared_ptr<CallCredentials> StsCredentials(const StsCredentialsOptions& options) {
+std::shared_ptr<CallCredentials> StsCredentials(
+    const StsCredentialsOptions& options) {
   grpc_sts_credentials_options opts;
   memset(&opts, 0, sizeof(opts));
   opts.sts_endpoint_url = options.sts_endpoint_url.c_str();

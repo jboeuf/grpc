@@ -671,10 +671,11 @@ static int refresh_token_httpcli_post_success(
   return 1;
 }
 
-static int token_httpcli_post_failure(
-    const grpc_httpcli_request* request, const char* body, size_t body_size,
-    grpc_millis deadline, grpc_closure* on_done,
-    grpc_httpcli_response* response) {
+static int token_httpcli_post_failure(const grpc_httpcli_request* request,
+                                      const char* body, size_t body_size,
+                                      grpc_millis deadline,
+                                      grpc_closure* on_done,
+                                      grpc_httpcli_response* response) {
   *response = http_response(403, "Not Authorized.");
   GRPC_CLOSURE_SCHED(on_done, GRPC_ERROR_NONE);
   return 1;
@@ -823,15 +824,15 @@ static void test_invalid_sts_creds_options(void) {
   GPR_ASSERT(url_should_be_null == nullptr);
 }
 
-static void validate_sts_token_http_request(
-    const grpc_httpcli_request* request, const char* body, size_t body_size) {
+static void validate_sts_token_http_request(const grpc_httpcli_request* request,
+                                            const char* body,
+                                            size_t body_size) {
   // Check that the body is constructed properly.
   GPR_ASSERT(body != nullptr);
   GPR_ASSERT(body_size != 0);
   GPR_ASSERT(request->handshaker == &grpc_httpcli_ssl);
   char* get_url_equivalent;
-  gpr_asprintf(&get_url_equivalent, "%s?%s", test_sts_endpoint_url,
-               body);
+  gpr_asprintf(&get_url_equivalent, "%s?%s", test_sts_endpoint_url, body);
   grpc_uri* url = grpc_uri_parse(get_url_equivalent, false);
   GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "resource"), "resource") == 0);
   GPR_ASSERT(strcmp(grpc_uri_get_query_arg(url, "audience"), "audience") == 0);
@@ -856,10 +857,11 @@ static void validate_sts_token_http_request(
                     "application/x-www-form-urlencoded") == 0);
 }
 
-static int sts_token_httpcli_post_success(
-    const grpc_httpcli_request* request, const char* body, size_t body_size,
-    grpc_millis deadline, grpc_closure* on_done,
-    grpc_httpcli_response* response) {
+static int sts_token_httpcli_post_success(const grpc_httpcli_request* request,
+                                          const char* body, size_t body_size,
+                                          grpc_millis deadline,
+                                          grpc_closure* on_done,
+                                          grpc_httpcli_response* response) {
   validate_sts_token_http_request(request, body, body_size);
   *response = http_response(200, valid_sts_json_response);
   GRPC_CLOSURE_SCHED(on_done, GRPC_ERROR_NONE);
@@ -883,7 +885,8 @@ static void test_sts_creds_success(void) {
       nullptr,                     // actor_token.
       nullptr                      // actor_type_type.
   };
-  grpc_call_credentials* creds = grpc_sts_credentials_create(&valid_options, nullptr);
+  grpc_call_credentials* creds =
+      grpc_sts_credentials_create(&valid_options, nullptr);
 
   /* First request: http put should be called. */
   request_metadata_state* state =
@@ -924,7 +927,8 @@ static void test_sts_creds_failure(void) {
       nullptr,                     // actor_token.
       nullptr                      // actor_type_type.
   };
-  grpc_call_credentials* creds = grpc_sts_credentials_create(&valid_options, nullptr);
+  grpc_call_credentials* creds =
+      grpc_sts_credentials_create(&valid_options, nullptr);
   grpc_httpcli_set_override(httpcli_get_should_not_be_called,
                             token_httpcli_post_failure);
   run_request_metadata_test(creds, auth_md_ctx, state);
